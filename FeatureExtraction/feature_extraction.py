@@ -21,7 +21,7 @@ def get_mfccs(dataset_path, json_path, n_mfcc, n_fft, hop_length, expected_num_m
 
             for f in filenames:
                 # Load the file
-                print(f)
+
                 file_path = os.path.join(dirpath, f)
                 signal, sr = librosa.load(file_path, sr=sample_rate)
 
@@ -29,6 +29,7 @@ def get_mfccs(dataset_path, json_path, n_mfcc, n_fft, hop_length, expected_num_m
                 mfcc = mfcc.T
 
                 if len(mfcc) == expected_num_mfccs_vectors:
+                    print(f)
                     features["mfcc"].append(mfcc.tolist())
                     features["labels"].append(i-1)
 

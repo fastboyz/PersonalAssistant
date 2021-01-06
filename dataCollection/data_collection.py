@@ -62,8 +62,15 @@ def record_key_word_mode(args):
                 frames.append(data)
 
             print("Saving...")
-            file_path = os.path.join(args.keyword_file_path, "{}.wav".format(index))
-            data_collector.save_to_file(frames=frames, file_name=file_path)
+            if not os.path.exists(args.keyword_file_path):
+                os.makedirs(args.keyword_file_path)
+            if not args.file_name:
+                file_path = os.path.join(args.keyword_file_path, "{}.wav".format(index))
+                data_collector.save_to_file(frames=frames, file_name=file_path)
+            else:
+                file_path = os.path.join(args.keyword_file_path, "{}_{}.wav".format(args.file_name, index))
+                data_collector.save_to_file(frames=frames, file_name=file_path)
+
             index += 1
     except KeyboardInterrupt:
         print("User Interruption")
@@ -126,6 +133,7 @@ if __name__ == '__main__':
     parser.add_argument("--keyword_file_path", type=str, default=None,
                         help="this is path where to save the recordings /path/to")
     parser.add_argument("--keyword_mode", default=False, help="Set to Keyword Recording mode", action="store_true")
+    parser.add_argument("--file_name", type=str, default="", help="Set the file for batch recordings")
 
     args = parser.parse_args()
 
