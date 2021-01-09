@@ -5,7 +5,6 @@ import tempfile
 
 import matplotlib.pyplot as plt
 import numpy as np
-import tensorflow as tf
 import tensorflow.keras as keras
 from sklearn.model_selection import train_test_split
 
@@ -21,8 +20,9 @@ METRICS = [
     keras.metrics.AUC(name='auc'),
 ]
 
-physical_devices = tf.config.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[0], True)
+
+# physical_devices = tf.config.list_physical_devices('GPU')
+# tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
 
 def load_data(dataset_path):
@@ -93,15 +93,15 @@ def make_model(shape, output_bias=None):
 
         # Dense layer
         mdl.add(keras.layers.Dense(128, activation='relu'))
-        mdl.add(keras.layers.Dropout(0.3))
+        mdl.add(keras.layers.Dropout(0.25))
 
         # Output layer
-        mdl.add(keras.layers.Dense(2, activation='sigmoid', bias_initializer=output_bias))
+        mdl.add(keras.layers.Dense(2, activation='softmax', bias_initializer=output_bias))
     return mdl
 
 
 def plot_metrics(history):
-    metrics = ['loss', 'auc', 'precision', 'recall']
+    metrics = ['loss', 'precision', 'recall']
     for n, metric in enumerate(metrics):
         name = metric.replace("_", " ").capitalize()
         plt.subplot(2, 2, n + 1)
@@ -112,12 +112,33 @@ def plot_metrics(history):
         plt.ylabel(name)
         if metric == 'loss':
             plt.ylim([0, plt.ylim()[1]])
-        elif metric == 'auc':
-            plt.ylim([0.8, 1])
+        # elif metric == 'auc':
+        #     plt.ylim([0.8, 1])
         else:
             plt.ylim([0, 1])
 
         plt.legend()
+
+
+def plot_history(hist):
+    fig, axs = plt.subplots(2)
+
+    # Create the accuracy sub plot
+    axs[0].plot(hist.history["accuracy"], label="Train accuracy")
+    axs[0].plot(hist.history["val_accuracy"], label="Test accuracy")
+    axs[0].set_ylabel("Accuracy")
+    axs[0].legend(loc="lower right")
+    axs[0].set_title("Accuracy eval")
+
+    # Create the error sub plot
+    axs[1].plot(hist.history["loss"], label="Train error")
+    axs[1].plot(hist.history["val_loss"], label="Test error")
+    axs[1].set_ylabel("Error")
+    axs[1].set_xlabel("Epoch")
+    axs[1].legend(loc="upper right")
+    axs[1].set_title("Error eval")
+
+    plt.show()
 
 
 def main(args):
@@ -125,19 +146,21 @@ def main(args):
     X_train, X_validation, X_test, Y_train, Y_validation, Y_test, labels, initial_bias, class_weight = prepare_dataset(
         args)
 
+    print(Y_train)
     # Build the RNN-LSTM
     input_shape = (X_train.shape[1], X_train.shape[2])
-    model = make_model(input_shape, output_bias=initial_bias)
+
+    model = make_model(input_shape, output_bias=initial_bias[0])
 
     optimizer = keras.optimizers.Adam(learning_rate=1e-3)
-    loss = keras.losses.BinaryCrossentropy
-    model.compile(optimizer=optimizer, loss=loss, metrics=METRICS)
+    loss = keras.losses.SparseCategoricalCrossentropy()
+    model.compile(optimizer=optimizer, loss=loss, metrics=['accuracy'])
 
     initial_weights = os.path.join(tempfile.mkdtemp(), 'initial_weights')
     model.save_weights(initial_weights)
 
     early_stopping = keras.callbacks.EarlyStopping(
-        monitor='val_auc',
+        monitor='accuracy',
         verbose=1,
         patience=10,
         mode='max',
@@ -145,13 +168,16 @@ def main(args):
 
     model.summary()
     history = model.fit(X_train, Y_train, validation_data=(X_validation, Y_validation), batch_size=args.batch_size,
-                        epochs=args.epochs, callbacks=early_stopping, class_weight=class_weight)
+                        epochs=args.epochs, callbacks=[early_stopping], class_weight=class_weight)
 
-    plot_metrics(history)
+    plot_history(history)
+    # plot_metrics(history)
 
-    results = model.evaluate(X_train, Y_train, batch_size=args.batch_size, verbose=0)
+    results = model.evaluate(X_test, Y_test, batch_size=args.batch_size, verbose=1)
     print("Loss: {:0.4f}\n"
           "Accuracy: {:0.4f}".format(results[0], results[1]))
+
+    model.save(args.model_path)
 
 
 if __name__ == '__main__':
@@ -160,6 +186,8 @@ if __name__ == '__main__':
         """)
 
     parser.add_argument("--dataset_path", type=str, help="This is the path to the directory where the datasets reside",
+                        required=True)
+    parser.add_argument("--model_path", type=str, help="This is the path to save the model",
                         required=True)
     parser.add_argument("--test_size", type=float, default=0.25, help="Size of the test dataset")
     parser.add_argument("--validation_size", type=float, default=0.2, help="Size of the validation dataset")
