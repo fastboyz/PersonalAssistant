@@ -2,6 +2,7 @@
 Process audio files
 """
 import argparse
+import math
 import os
 
 from pydub import AudioSegment
@@ -20,16 +21,22 @@ Pydub -> make_chunk that make chunkc of audio files
 
 def split_audio_file(file, seconds, save_path):
     audio_segement = AudioSegment.from_file(file)
+
     length = seconds * 1000
     chunks = make_chunks(audio_segement, length)
 
+    second_of_silence = AudioSegment.silent(duration=math.fabs(math.ceil(seconds) * 1000) - length)
+
+    print("name: {} size: {}".format(file.split(os.path.sep)[-1], len(audio_segement)))
     for i, chunk in enumerate(chunks):
-        og_file_name = file.split(os.path.sep)[-1]
-        new_file_name = "{}_{}".format(i, og_file_name)
-        if not os.path.exists(save_path):
-            os.makedirs(save_path)
-        file_path = os.path.join(save_path, new_file_name)
-        chunk.export(file_path, format="wav")
+        if len(chunk) == length:
+            chunk = chunk + second_of_silence
+            og_file_name = file.split(os.path.sep)[-1]
+            new_file_name = "{}_{}".format(i, og_file_name)
+            if not os.path.exists(save_path):
+                os.makedirs(save_path)
+            file_path = os.path.join(save_path, new_file_name)
+            chunk.export(file_path, format="wav")
 
 
 def dir_mode(dir, seconds, save_path):
@@ -44,7 +51,7 @@ if __name__ == '__main__':
         """)
 
     parser.add_argument("--file", type=str, default=None, help="This is the path to the file you are trying to split", )
-    parser.add_argument("--seconds", type=int, default=2, help="Length of each chunks")
+    parser.add_argument("--seconds", type=float, default=2, help="Length of each chunks")
     parser.add_argument("--save_path", type=str,
                         help="This is path where to save the chunks", required=True)
     parser.add_argument("--dir", type=str, default=None, help="This is the path to the file you are trying to split", )
